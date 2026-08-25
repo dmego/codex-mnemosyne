@@ -71,7 +71,7 @@
             "type": "command",
             "command": "python3 \"$PLUGIN_ROOT/bin/mnemosyne-hook.py\" SessionEnd",
             "commandWindows": "py -3 \"%PLUGIN_ROOT%\\bin\\mnemosyne-hook.py\" SessionEnd",
-            "timeout": 20
+            "timeout": 3
           }
         ]
       }

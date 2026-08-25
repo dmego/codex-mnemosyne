@@ -27,7 +27,7 @@ class HookRunnerTests(unittest.TestCase):
                                 self.kwargs = kwargs
                             def get_context(self, limit=5):
                                 return [{"content": "session context", "source": "fixture"}]
-                            def recall(self, query, top_k=5):
+                            def recall(self, query, top_k=5, **kwargs):
                                 return [{"content": "prompt context: " + query, "source": "fixture"}]
                             def remember(self, **kwargs):
                                 return "fixture-id"

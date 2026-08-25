@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 from .adapter import MemoryPort
 from .config import Config
-from .filtering import contains_secret, should_capture
+from .filtering import contains_prompt_injection, contains_secret, should_capture
 from .outbox import MemoryEntry, Outbox
 from .rendering import render_memories
 from .transcript import latest_exchange, new_turns
@@ -44,7 +44,11 @@ def _context(memory: MemoryPort, limit: int) -> list[dict[str, object]]:
 def handle_session_start(payload: Mapping[str, object], config: Config, memory: MemoryPort) -> HookResult:
     if not config.auto_recall:
         return HookResult()
-    rendered = render_memories(_context(memory, config.recall_top_k), config.recall_max_chars)
+    rendered = render_memories(
+        _context(memory, config.recall_top_k),
+        config.recall_max_chars,
+        config.item_max_chars,
+    )
     return HookResult(rendered or None)
 
 
@@ -54,7 +58,11 @@ def handle_prompt(payload: Mapping[str, object], config: Config, memory: MemoryP
     prompt = str(_value(payload, "prompt", "user_prompt", "userPrompt") or "").strip()
     if not prompt:
         return HookResult()
-    rendered = render_memories(_recall(memory, prompt, config.recall_top_k), config.recall_max_chars)
+    rendered = render_memories(
+        _recall(memory, prompt, config.recall_top_k),
+        config.recall_max_chars,
+        config.item_max_chars,
+    )
     return HookResult(rendered or None)
 
 
@@ -116,7 +124,17 @@ def handle_post_tool(payload: Mapping[str, object], config: Config, outbox: Outb
         return HookResult()
     summary = summarize_tool(payload)
     if summary:
-        outbox.enqueue(MemoryEntry(summary, {"kind": "tool", "project": config.project_name(payload)}))
+        outbox.enqueue(
+            MemoryEntry(
+                summary,
+                {
+                    "kind": "tool",
+                    "project": config.project_name(payload),
+                    "session_id": config.session_id(payload),
+                    "channel_id": config.project_channel(payload),
+                },
+            )
+        )
     return HookResult()
 
 
@@ -130,7 +148,7 @@ def _transcript_path(payload: Mapping[str, object]) -> Path | None:
 def _capture_content(payload: Mapping[str, object], config: Config, assistant: str, user: str) -> str:
     project = config.project_name(payload)
     pieces = [f"Project: {project}"]
-    if user and not contains_secret(user):
+    if user and not contains_secret(user) and not contains_prompt_injection(user):
         pieces.append(f"Task: {user[:2000]}")
     pieces.append(f"Result: {assistant[:config.capture_max_chars]}")
     content = "\n".join(pieces)
@@ -149,21 +167,26 @@ def handle_write_event(
         if path is not None:
             turns, cursor = new_turns(path, outbox.read_cursor())
             exchange = latest_exchange(turns)
+            can_advance = True
             if exchange and should_capture(exchange.assistant_text, config):
                 content = _capture_content(payload, config, exchange.assistant_text, exchange.user_text)
                 if not contains_secret(content):
-                    outbox.enqueue(
-                        MemoryEntry(
-                            content,
-                            {
-                                "kind": "turn",
-                                "event": event_name,
-                                "project": config.project_name(payload),
-                                "event_index": exchange.assistant_index,
-                            },
-                        )
+                    entry = MemoryEntry(
+                        content,
+                        {
+                            "kind": "turn",
+                            "event": event_name,
+                            "project": config.project_name(payload),
+                            "session_id": config.session_id(payload),
+                            "channel_id": config.project_channel(payload),
+                            "event_index": exchange.assistant_index,
+                        },
                     )
-            outbox.write_cursor(cursor)
+                    enqueued = outbox.enqueue(entry)
+                    already_pending = any(item.fingerprint == entry.fingerprint for item in outbox.pending())
+                    can_advance = enqueued or already_pending
+            if can_advance:
+                outbox.write_cursor(cursor)
     try:
         outbox.flush(lambda entry: memory.remember(entry.content, entry.metadata))
     except Exception:

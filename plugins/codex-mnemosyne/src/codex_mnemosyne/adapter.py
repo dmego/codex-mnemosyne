@@ -37,6 +37,14 @@ class MnemosyneAdapter:
         if self._memory is not None:
             return self._memory
         factory = self._memory_factory
+        self._memory = self._new_memory(
+            factory,
+            self.config.session_id(self.payload),
+            self.config.project_channel(self.payload),
+        )
+        return self._memory
+
+    def _new_memory(self, factory: Callable[..., Any] | None, session_id: str, channel_id: str) -> Any:
         if factory is None:
             try:
                 from mnemosyne import Mnemosyne as factory
@@ -48,17 +56,25 @@ class MnemosyneAdapter:
             except Exception as exc:  # pragma: no cover - depends on host installation
                 raise MemoryUnavailable("Mnemosyne SDK is not importable") from exc
 
-        self._memory = factory(
-            session_id=self.config.session_id(self.payload),
+        return factory(
+            session_id=session_id,
             bank=self.config.bank,
             author_id=self.config.author_id,
             author_type=self.config.author_type,
-            channel_id=self.config.project_name(self.payload),
+            channel_id=channel_id,
         )
-        return self._memory
 
     def recall(self, query: str, top_k: int) -> list[dict[str, object]]:
-        result = self._load_memory().recall(query=query, top_k=top_k)
+        try:
+            result = self._load_memory().recall(
+                query=query,
+                top_k=top_k,
+                channel_id=self.config.project_channel(self.payload),
+            )
+        except TypeError as exc:
+            if "channel_id" not in str(exc):
+                raise
+            raise MemoryUnavailable("Mnemosyne SDK lacks project channel filtering") from exc
         return [dict(item) for item in result or []]
 
     def get_context(self, limit: int) -> list[dict[str, object]]:
@@ -69,7 +85,15 @@ class MnemosyneAdapter:
         payload = dict(metadata)
         payload.setdefault("project", self.config.project_name(self.payload))
         payload.setdefault("session_id", self.config.session_id(self.payload))
-        return self._load_memory().remember(
+        payload.setdefault("channel_id", self.config.project_channel(self.payload))
+        target_session = str(payload["session_id"])
+        target_channel = str(payload["channel_id"])
+        current_session = self.config.session_id(self.payload)
+        current_channel = self.config.project_channel(self.payload)
+        memory = self._load_memory()
+        if target_session != current_session or target_channel != current_channel:
+            memory = self._new_memory(self._memory_factory, target_session, target_channel)
+        return memory.remember(
             content=content,
             source=self.config.source,
             importance=self.config.importance,

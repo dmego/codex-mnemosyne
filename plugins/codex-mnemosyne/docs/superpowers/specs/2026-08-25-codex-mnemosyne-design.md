@@ -55,17 +55,18 @@ Stop / PreCompact / SessionEnd
 2. `MNEMOSYNE_MCP_BANK`
 3. `default`
 
-`MNEMOSYNE_DATA_DIR` 等 Mnemosyne 原生环境变量保持由调用环境决定。每个会话使用稳定的 `session_id`，作者默认为 `codex`，项目通过短目录名写入 metadata 和查询提示，不把绝对路径写进记忆。
+`MNEMOSYNE_DATA_DIR` 等 Mnemosyne 原生环境变量保持由调用环境决定。每个会话使用稳定的 `session_id`，作者默认为 `codex`，项目通过短目录名写入 metadata；recall 使用当前项目路径的稳定 hash 作为 `channel_id`，不把绝对路径写进记忆。
 
 自动写入默认使用 `scope=global`、`source=codex-auto`、`trust_tier=EXTERNAL_WRITE`，并支持通过环境变量切换 scope、importance、`extract`、`extract_entities`、`veracity`。Mnemosyne 自带的精确去重、混合 FTS/vector recall、结构化 fact/entity extraction 和 `sleep` consolidation 保持可用；插件不自行复制这些逻辑。
 
 ## 低噪声与安全策略
 
 - 召回默认最多 5 条、总长度 6KB；单条记忆最多 1.5KB。
+- 召回内容明确标为不可信参考数据，过滤常见 prompt-injection 指令，不把记忆内容当作可执行指令。
 - 自动捕获只保存至少 80 个字符、最多 12KB 的最新 assistant 结果；短确认、纯问候和明显的工具噪声跳过。
 - 通过内置正则过滤 API key、token、密码、cookie、Bearer、私钥块等；过滤规则可配置但默认严格。
 - PostToolUse 只记录非只读 shell 命令、编辑器工具、测试/构建命令；不记录 Mnemosyne 自身调用。
-- outbox 文件放在可配置的 Codex 状态目录，使用原子追加和单进程 lock；写入失败保留队列供下一个 hook 重试。
+- outbox 文件放在可配置的 Codex 状态目录，使用原子追加和单进程 lock；写入失败保留队列，后续任意 session 的 `SessionStart` 或写回 hook 都会扫描重试。
 - hook 输出只在 SessionStart/UserPromptSubmit 返回 `hookSpecificOutput`；写回和观察 hook 不向用户/模型输出日志。
 
 ## 插件边界

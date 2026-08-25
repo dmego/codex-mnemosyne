@@ -52,7 +52,7 @@ class FlushStats:
 
 
 class Outbox:
-    """A per-session queue with deduplication and crash-safe rewrites."""
+    """A durable queue with deduplication and crash-safe rewrites."""
 
     LOCK_STALE_SECONDS = 120
     LOCK_WAIT_SECONDS = 1.0
@@ -65,6 +65,17 @@ class Outbox:
         self.path = self.outbox_dir / f"{digest}.jsonl"
         self.cursor_path = self.cursor_dir / f"{digest}.cursor"
         self.lock_path = self.outbox_dir / f"{digest}.lock"
+
+    @classmethod
+    def _from_digest(cls, root: Path, digest: str) -> "Outbox":
+        instance = cls.__new__(cls)
+        instance.root = Path(root).expanduser()
+        instance.outbox_dir = instance.root / "outbox"
+        instance.cursor_dir = instance.root / "cursors"
+        instance.path = instance.outbox_dir / f"{digest}.jsonl"
+        instance.cursor_path = instance.cursor_dir / f"{digest}.cursor"
+        instance.lock_path = instance.outbox_dir / f"{digest}.lock"
+        return instance
 
     @contextmanager
     def _lock(self) -> Iterator[bool]:
@@ -146,7 +157,7 @@ class Outbox:
             os.fsync(handle.fileno())
         os.replace(temporary, self.path)
 
-    def flush(self, writer: Callable[[MemoryEntry], object]) -> FlushStats:
+    def _flush_one(self, writer: Callable[[MemoryEntry], object]) -> FlushStats:
         with self._lock() as acquired:
             if not acquired:
                 pending = self.pending()
@@ -165,6 +176,27 @@ class Outbox:
                 written += 1
             self._write_entries(remaining)
             return FlushStats(written=written, failed=failed, remaining=len(remaining))
+
+    def flush(self, writer: Callable[[MemoryEntry], object]) -> FlushStats:
+        """Flush this queue and all other session queues in the same state dir."""
+        queues = [self]
+        if self.outbox_dir.exists():
+            for path in sorted(self.outbox_dir.glob("*.jsonl")):
+                digest = path.stem
+                if digest != self.path.stem:
+                    queues.append(self._from_digest(self.root, digest))
+
+        totals = FlushStats(written=0, failed=0, remaining=0)
+        for queue in queues:
+            stats = queue._flush_one(writer)
+            totals = FlushStats(
+                written=totals.written + stats.written,
+                failed=totals.failed + stats.failed,
+                remaining=totals.remaining + stats.remaining,
+            )
+            if stats.failed:
+                break
+        return totals
 
     def read_cursor(self) -> int:
         try:

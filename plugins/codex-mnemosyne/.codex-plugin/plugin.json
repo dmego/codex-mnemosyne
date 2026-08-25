@@ -1,6 +1,6 @@
 {
   "name": "codex-mnemosyne",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Automatic, local-first Mnemosyne memory for OpenAI Codex through native lifecycle hooks.",
   "author": {
     "name": "dmego",

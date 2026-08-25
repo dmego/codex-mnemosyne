@@ -54,6 +54,7 @@ def _run(event: str, payload: dict[str, Any]) -> str | None:
     config = Config.from_env()
     memory = _memory(config, payload)
     if event == "SessionStart":
+        _flush_pending(config, payload, memory)
         return handle_session_start(payload, config, memory).additional_context
     if event == "UserPromptSubmit":
         return handle_prompt(payload, config, memory).additional_context
@@ -65,6 +66,14 @@ def _run(event: str, payload: dict[str, Any]) -> str | None:
         outbox = Outbox(config.state_dir, config.session_id(payload))
         handle_write_event(event, payload, config, memory, outbox)
     return None
+
+
+def _flush_pending(config: Config, payload: dict[str, Any], memory) -> None:
+    outbox = Outbox(config.state_dir, config.session_id(payload))
+    try:
+        outbox.flush(lambda entry: memory.remember(entry.content, entry.metadata))
+    except Exception:
+        pass
 
 
 def main(argv: list[str] | None = None) -> int:

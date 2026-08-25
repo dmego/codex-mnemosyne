@@ -22,6 +22,16 @@
 - Hook 使用的 Python 环境能够导入 `mnemosyne`。
 - 插件本身不要求网络；embedding 和结构化 extraction 是否联网由 Mnemosyne 自己的配置决定。
 
+请把 Mnemosyne 安装到 hook 实际使用的同一个 Python 环境：
+
+```bash
+python3 -m pip install "mnemosyne>=3.11.1,<4"
+```
+
+如果你使用的是 Mnemosyne 源码 checkout，请先在该环境安装源码，并确保
+hook 调用的解释器能够找到它。插件不会捆绑 Mnemosyne 及其可选的
+embedding/LLM 依赖；SDK 不可用时会 fail-open。
+
 ## 本地安装
 
 这个目录是可安装的 plugin source。仓库根目录已经包含 Codex marketplace 清单，可以从 GitHub 或本地 checkout 安装：
@@ -59,6 +69,7 @@ codex plugin add codex-mnemosyne@codex-mnemosyne
 | `CODEX_MNEMOSYNE_EXTRACT_ENTITIES` | `false` | 向 Mnemosyne 传递 `extract_entities=True`。 |
 
 Mnemosyne 数据库路径仍由 `MNEMOSYNE_DATA_DIR` 和 Mnemosyne 自己的 bank resolver 决定。插件不绑定任何本机路径。
+自动召回会按当前项目路径的稳定 hash 做 channel 过滤，默认不会返回其他项目捕获的记忆；路径本身不会写入 channel 值。
 
 ## 隐私与失败策略
 

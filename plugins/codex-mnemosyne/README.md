@@ -22,6 +22,17 @@ The automatic path imports the Mnemosyne SDK directly. MCP is optional: it is us
 - The selected Python environment must be able to import `mnemosyne`.
 - No network service is required by this plugin. Mnemosyne decides whether its own embedding or extraction configuration uses local or remote services.
 
+Install Mnemosyne into the same Python environment used by the hook command:
+
+```bash
+python3 -m pip install "mnemosyne>=3.11.1,<4"
+```
+
+If your Mnemosyne checkout is not published to the environment yet, install it
+from its source checkout instead and keep the resulting interpreter on the
+hook `PATH`. The plugin deliberately does not bundle Mnemosyne or its optional
+embedding/LLM dependencies; it fails open when the SDK is unavailable.
+
 ## Local plugin installation
 
 This directory is the installable plugin source. The repository root already contains a Codex marketplace descriptor, so install the plugin from GitHub or from the checkout:
@@ -61,6 +72,7 @@ The plugin reads only its own `CODEX_MNEMOSYNE_*` variables and passes Mnemosyne
 | `CODEX_MNEMOSYNE_EXTRACT_ENTITIES` | `false` | Pass `extract_entities=True` to Mnemosyne. |
 
 The Mnemosyne database location remains controlled by `MNEMOSYNE_DATA_DIR` and Mnemosyne's own bank resolver. The plugin never assumes a local path.
+Automatic recall is filtered by a stable hash of the current project path, so memories captured in another project are not returned by default. The path itself is never stored as a channel value.
 
 ## Privacy and failure behavior
 

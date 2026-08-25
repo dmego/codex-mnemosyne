@@ -17,6 +17,8 @@
 - Hook failures are fail-open and must never block a Codex turn.
 - Automatic recall is bounded to 5 records and 6KB by default.
 - Automatic capture filters secrets, short responses, injected system text, and read-only tool noise.
+- Automatic recall treats stored content as untrusted reference data and applies project-channel filtering.
+- SessionStart replays pending outbox entries from earlier sessions.
 - Existing user hooks are outside this repository and must not be overwritten by plugin files.
 - Tests must not touch the user’s Mnemosyne database or require network access.
 

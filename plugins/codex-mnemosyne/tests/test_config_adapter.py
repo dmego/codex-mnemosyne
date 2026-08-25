@@ -130,10 +130,23 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual("portable", memory.init_kwargs["bank"])
         self.assertEqual("agent", memory.init_kwargs["author_id"])
         self.assertEqual("demo:s1", memory.init_kwargs["session_id"])
-        self.assertEqual("demo", memory.init_kwargs["channel_id"])
+        self.assertEqual(config.project_channel({"cwd": "/work/demo", "session_id": "s1"}), memory.init_kwargs["channel_id"])
+        self.assertEqual(config.project_channel({"cwd": "/work/demo", "session_id": "s1"}), memory.calls[0][1]["channel_id"])
         self.assertEqual("recall", memory.calls[0][0])
         self.assertEqual("remember", memory.calls[2][0])
         self.assertEqual("codex-auto", memory.calls[2][1]["source"])
+
+        adapter.remember(
+            "old session content",
+            {
+                "kind": "turn",
+                "session_id": "old-session",
+                "channel_id": "old-channel",
+            },
+        )
+        old_memory = FakeMnemosyne.instances[-1]
+        self.assertEqual("old-session", old_memory.init_kwargs["session_id"])
+        self.assertEqual("old-channel", old_memory.init_kwargs["channel_id"])
 
 
 if __name__ == "__main__":

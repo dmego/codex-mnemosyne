@@ -57,6 +57,23 @@ class OutboxTests(unittest.TestCase):
             outbox.write_cursor(17)
             self.assertEqual(17, outbox.read_cursor())
 
+    def test_flush_retries_pending_entries_from_other_sessions(self):
+        from codex_mnemosyne.outbox import MemoryEntry, Outbox
+
+        with tempfile.TemporaryDirectory() as directory:
+            first = Outbox(Path(directory), "first-session")
+            second = Outbox(Path(directory), "second-session")
+            first.enqueue(MemoryEntry("first", {"kind": "turn"}))
+            second.enqueue(MemoryEntry("second", {"kind": "turn"}))
+            written = []
+
+            stats = second.flush(lambda entry: written.append(entry.content))
+
+            self.assertEqual(2, stats.written)
+            self.assertEqual(["first", "second"], sorted(written))
+            self.assertEqual([], first.pending())
+            self.assertEqual([], second.pending())
+
 
 class HookTests(unittest.TestCase):
     def _config(self, directory):

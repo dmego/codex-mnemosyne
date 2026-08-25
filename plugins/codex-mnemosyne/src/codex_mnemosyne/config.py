@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
@@ -140,3 +141,9 @@ class Config:
     def project_name(self, payload: Mapping[str, object]) -> str:
         cwd = str(payload.get("cwd") or payload.get("projectFolder") or os.getcwd())
         return _safe_slug(Path(cwd).name, "workspace")
+
+    def project_channel(self, payload: Mapping[str, object]) -> str:
+        """Return a stable, non-path channel key for project-isolated recall."""
+        cwd = str(payload.get("cwd") or payload.get("projectFolder") or os.getcwd())
+        digest = hashlib.sha256(str(Path(cwd).expanduser().resolve()).encode("utf-8")).hexdigest()[:16]
+        return f"codex-project:{digest}"
