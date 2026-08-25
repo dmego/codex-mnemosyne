@@ -124,12 +124,18 @@ class HookTests(unittest.TestCase):
                 outbox,
             )
             handle_post_tool(
+                {"tool_name": "exec_command", "tool_input": {"cmd": "npm test"}},
+                config,
+                outbox,
+            )
+            handle_post_tool(
                 {"tool_name": "mcp__mnemosyne__mnemosyne_recall", "tool_input": {}},
                 config,
                 outbox,
             )
-            self.assertEqual(1, len(outbox.pending()))
+            self.assertEqual(2, len(outbox.pending()))
             self.assertIn("pytest -q", outbox.pending()[0].content)
+            self.assertIn("npm test", outbox.pending()[1].content)
 
     def test_stop_captures_transcript_once_and_flushes(self):
         from codex_mnemosyne.hooks import handle_write_event
