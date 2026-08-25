@@ -1,0 +1,80 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/bin/mnemosyne-hook.py\" SessionStart",
+            "commandWindows": "py -3 \"%PLUGIN_ROOT%\\bin\\mnemosyne-hook.py\" SessionStart",
+            "timeout": 15,
+            "statusMessage": "mnemosyne: recalling context"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/bin/mnemosyne-hook.py\" UserPromptSubmit",
+            "commandWindows": "py -3 \"%PLUGIN_ROOT%\\bin\\mnemosyne-hook.py\" UserPromptSubmit",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/bin/mnemosyne-hook.py\" PostToolUse",
+            "commandWindows": "py -3 \"%PLUGIN_ROOT%\\bin\\mnemosyne-hook.py\" PostToolUse",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/bin/mnemosyne-hook.py\" PreCompact",
+            "commandWindows": "py -3 \"%PLUGIN_ROOT%\\bin\\mnemosyne-hook.py\" PreCompact",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/bin/mnemosyne-hook.py\" Stop",
+            "commandWindows": "py -3 \"%PLUGIN_ROOT%\\bin\\mnemosyne-hook.py\" Stop",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/bin/mnemosyne-hook.py\" SessionEnd",
+            "commandWindows": "py -3 \"%PLUGIN_ROOT%\\bin\\mnemosyne-hook.py\" SessionEnd",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

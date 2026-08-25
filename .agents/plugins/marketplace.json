@@ -1,0 +1,20 @@
+{
+  "name": "codex-mnemosyne",
+  "interface": {
+    "displayName": "Codex Mnemosyne"
+  },
+  "plugins": [
+    {
+      "name": "codex-mnemosyne",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex-mnemosyne"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

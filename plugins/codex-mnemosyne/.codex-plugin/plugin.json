@@ -1,0 +1,37 @@
+{
+  "name": "codex-mnemosyne",
+  "version": "0.1.0",
+  "description": "Automatic, local-first Mnemosyne memory for OpenAI Codex through native lifecycle hooks.",
+  "author": {
+    "name": "dmego",
+    "url": "https://github.com/dmego"
+  },
+  "homepage": "https://github.com/dmego/codex-mnemosyne",
+  "repository": "https://github.com/dmego/codex-mnemosyne",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "mnemosyne",
+    "memory",
+    "hooks",
+    "mcp"
+  ],
+  "hooks": "./hooks/hooks.json",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Mnemosyne",
+    "shortDescription": "Automatic Mnemosyne recall and turn capture for Codex.",
+    "longDescription": "Uses native Codex lifecycle hooks for bounded memory recall before turns and durable memory capture after turns. MCP remains available for manual deep search and management.",
+    "developerName": "dmego",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Lifecycle hooks"
+    ],
+    "defaultPrompt": [
+      "Use automatic Mnemosyne memory for this Codex session."
+    ],
+    "brandColor": "#6D5EF5"
+  }
+}
