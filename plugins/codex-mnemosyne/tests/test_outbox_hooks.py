@@ -74,6 +74,22 @@ class OutboxTests(unittest.TestCase):
             self.assertEqual([], first.pending())
             self.assertEqual([], second.pending())
 
+    def test_plugin_entries_record_bank_for_safe_replay(self):
+        from codex_mnemosyne.hooks import handle_post_tool
+        from codex_mnemosyne.outbox import Outbox
+        from codex_mnemosyne.config import Config
+
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config.from_env({"CODEX_MNEMOSYNE_STATE_DIR": directory})
+            outbox = Outbox(Path(directory), "session-key")
+            handle_post_tool(
+                {"tool_name": "shell", "tool_input": {"command": "pytest -q"}, "cwd": "/work/app"},
+                config,
+                outbox,
+            )
+
+            self.assertEqual("default", outbox.pending()[0].metadata["bank"])
+
 
 class HookTests(unittest.TestCase):
     def _config(self, directory):

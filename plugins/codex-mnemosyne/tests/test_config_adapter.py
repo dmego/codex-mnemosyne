@@ -87,7 +87,7 @@ class ConfigTests(unittest.TestCase):
 
 class AdapterTests(unittest.TestCase):
     def test_adapter_maps_recall_and_remember_to_mnemosyne(self):
-        from codex_mnemosyne.adapter import MnemosyneAdapter
+        from codex_mnemosyne.adapter import MemoryUnavailable, MnemosyneAdapter
         from codex_mnemosyne.config import Config
 
         class FakeMnemosyne:
@@ -142,11 +142,27 @@ class AdapterTests(unittest.TestCase):
                 "kind": "turn",
                 "session_id": "old-session",
                 "channel_id": "old-channel",
+                "bank": "portable",
             },
         )
         old_memory = FakeMnemosyne.instances[-1]
         self.assertEqual("old-session", old_memory.init_kwargs["session_id"])
         self.assertEqual("old-channel", old_memory.init_kwargs["channel_id"])
+        self.assertEqual("portable", old_memory.init_kwargs["bank"])
+
+        adapter.remember(
+            "other bank content",
+            {
+                "kind": "turn",
+                "session_id": "s1",
+                "channel_id": config.project_channel({"cwd": "/work/demo", "session_id": "s1"}),
+                "bank": "other-bank",
+            },
+        )
+        self.assertEqual("other-bank", FakeMnemosyne.instances[-1].init_kwargs["bank"])
+
+        with self.assertRaises(MemoryUnavailable):
+            adapter.remember("unroutable legacy content", {"kind": "turn"})
 
 
 if __name__ == "__main__":

@@ -41,10 +41,17 @@ class MnemosyneAdapter:
             factory,
             self.config.session_id(self.payload),
             self.config.project_channel(self.payload),
+            self.config.bank,
         )
         return self._memory
 
-    def _new_memory(self, factory: Callable[..., Any] | None, session_id: str, channel_id: str) -> Any:
+    def _new_memory(
+        self,
+        factory: Callable[..., Any] | None,
+        session_id: str,
+        channel_id: str,
+        bank: str,
+    ) -> Any:
         if factory is None:
             try:
                 from mnemosyne import Mnemosyne as factory
@@ -58,7 +65,7 @@ class MnemosyneAdapter:
 
         return factory(
             session_id=session_id,
-            bank=self.config.bank,
+            bank=bank,
             author_id=self.config.author_id,
             author_type=self.config.author_type,
             channel_id=channel_id,
@@ -86,13 +93,26 @@ class MnemosyneAdapter:
         payload.setdefault("project", self.config.project_name(self.payload))
         payload.setdefault("session_id", self.config.session_id(self.payload))
         payload.setdefault("channel_id", self.config.project_channel(self.payload))
+        is_plugin_entry = payload.get("kind") in {"turn", "tool"}
+        if is_plugin_entry and not payload.get("bank"):
+            raise MemoryUnavailable("legacy outbox entry has no bank routing")
         target_session = str(payload["session_id"])
         target_channel = str(payload["channel_id"])
+        target_bank = str(payload.get("bank") or self.config.bank)
         current_session = self.config.session_id(self.payload)
         current_channel = self.config.project_channel(self.payload)
         memory = self._load_memory()
-        if target_session != current_session or target_channel != current_channel:
-            memory = self._new_memory(self._memory_factory, target_session, target_channel)
+        if (
+            target_session != current_session
+            or target_channel != current_channel
+            or target_bank != self.config.bank
+        ):
+            memory = self._new_memory(
+                self._memory_factory,
+                target_session,
+                target_channel,
+                target_bank,
+            )
         return memory.remember(
             content=content,
             source=self.config.source,

@@ -25,7 +25,7 @@ The automatic path imports the Mnemosyne SDK directly. MCP is optional: it is us
 Install Mnemosyne into the same Python environment used by the hook command:
 
 ```bash
-python3 -m pip install "mnemosyne>=3.11.1,<4"
+python3 -m pip install "mnemosyne-memory>=3.11.1,<4"
 ```
 
 If your Mnemosyne checkout is not published to the environment yet, install it
@@ -81,6 +81,7 @@ Automatic recall is filtered by a stable hash of the current project path, so me
 - Context and captures are bounded; short acknowledgements are ignored.
 - Hook errors are fail-open and return exit code `0`, so a missing SDK or locked database cannot block Codex.
 - Failed writes remain in the local JSONL outbox and retry on a later lifecycle event.
+- Each queued write records its project channel and Mnemosyne bank; legacy entries without bank routing are held rather than written to the active bank.
 - The outbox is plain text. Store it in a protected local directory and do not sync it publicly.
 
 ## Tests

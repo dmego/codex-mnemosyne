@@ -132,6 +132,7 @@ def handle_post_tool(payload: Mapping[str, object], config: Config, outbox: Outb
                     "project": config.project_name(payload),
                     "session_id": config.session_id(payload),
                     "channel_id": config.project_channel(payload),
+                    "bank": config.bank,
                 },
             )
         )
@@ -179,6 +180,7 @@ def handle_write_event(
                             "project": config.project_name(payload),
                             "session_id": config.session_id(payload),
                             "channel_id": config.project_channel(payload),
+                            "bank": config.bank,
                             "event_index": exchange.assistant_index,
                         },
                     )
