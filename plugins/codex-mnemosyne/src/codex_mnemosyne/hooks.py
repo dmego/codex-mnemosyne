@@ -71,7 +71,14 @@ EDIT_MARKERS = ("apply_patch", "edit", "write", "create", "replace", "update", "
 def _command(tool_input: object) -> str:
     if not isinstance(tool_input, Mapping):
         return ""
-    command = tool_input.get("command")
+    command = next(
+        (
+            tool_input.get(key)
+            for key in ("command", "cmd", "argv", "args")
+            if tool_input.get(key) is not None
+        ),
+        None,
+    )
     if isinstance(command, list):
         return " ".join(str(item) for item in command)
     return str(command or "").strip()
