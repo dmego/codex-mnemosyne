@@ -40,6 +40,11 @@ class MnemosyneAdapter:
         if factory is None:
             try:
                 from mnemosyne import Mnemosyne as factory
+            except ImportError:
+                try:
+                    from mnemosyne.core.memory import Mnemosyne as factory
+                except Exception as exc:  # pragma: no cover - depends on host installation
+                    raise MemoryUnavailable("Mnemosyne SDK is not importable") from exc
             except Exception as exc:  # pragma: no cover - depends on host installation
                 raise MemoryUnavailable("Mnemosyne SDK is not importable") from exc
 
