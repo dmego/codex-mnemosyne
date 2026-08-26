@@ -47,6 +47,54 @@ class HookRunnerTests(unittest.TestCase):
                 check=False,
             )
 
+    def test_hook_reads_plugin_scoped_codex_config_without_process_env(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_home = Path(directory) / "codex-home"
+            config_home.mkdir()
+            (config_home / "config.toml").write_text(
+                '''
+[plugins."codex-mnemosyne@codex-mnemosyne".mcp_servers.mnemosyne.env]
+MNEMOSYNE_MCP_BANK = "config-bank"
+MNEMOSYNE_AUTHOR_ID = "config-author"
+''',
+                encoding="utf-8",
+            )
+            fake_module = Path(directory, "mnemosyne.py")
+            fake_module.write_text(
+                textwrap.dedent(
+                    """
+                    class Mnemosyne:
+                        def __init__(self, **kwargs):
+                            self.kwargs = kwargs
+                        def get_context(self, limit=5):
+                            return [{"content": "bank=" + self.kwargs["bank"] + "; author=" + self.kwargs["author_id"]}]
+                        def recall(self, query, top_k=5, **kwargs):
+                            return []
+                        def remember(self, **kwargs):
+                            return "fixture-id"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            environment = os.environ.copy()
+            environment["PYTHONPATH"] = f"{ROOT / 'src'}:{directory}"
+            environment["CODEX_MNEMOSYNE_STATE_DIR"] = directory
+            environment["CODEX_HOME"] = str(config_home)
+            environment.pop("CODEX_MNEMOSYNE_BANK", None)
+            environment.pop("MNEMOSYNE_MCP_BANK", None)
+            result = subprocess.run(
+                [sys.executable, str(RUNNER), "SessionStart"],
+                input=json.dumps({"session_id": "s1", "cwd": "/work/app"}),
+                text=True,
+                capture_output=True,
+                env=environment,
+                cwd=ROOT,
+                check=False,
+            )
+            self.assertEqual(0, result.returncode)
+            self.assertIn("bank=config-bank", result.stdout)
+            self.assertIn("author=config-author", result.stdout)
+
     def test_session_start_emits_codex_additional_context(self):
         result = self._run("SessionStart", {"session_id": "s1", "cwd": "/work/app"})
 
@@ -81,6 +129,53 @@ class HookRunnerTests(unittest.TestCase):
         self.assertEqual("", stop.stdout)
         self.assertEqual(0, malformed.returncode)
         self.assertEqual("", malformed.stdout)
+
+    def test_opt_in_diagnostics_prove_context_and_write_hook_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            environment = os.environ.copy()
+            environment["PYTHONPATH"] = f"{ROOT / 'src'}:{directory}"
+            environment["CODEX_MNEMOSYNE_STATE_DIR"] = directory
+            environment["CODEX_MNEMOSYNE_DIAGNOSTICS"] = "true"
+            Path(directory, "mnemosyne.py").write_text(
+                textwrap.dedent(
+                    """
+                    class Mnemosyne:
+                        def __init__(self, **kwargs):
+                            pass
+                        def get_context(self, limit=5):
+                            return [{"content": "diagnostic context"}]
+                        def recall(self, query, top_k=5, **kwargs):
+                            return []
+                        def remember(self, **kwargs):
+                            return "fixture-id"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            prompt = subprocess.run(
+                [sys.executable, str(RUNNER), "SessionStart"],
+                input=json.dumps({"session_id": "s1", "cwd": "/private/project"}),
+                text=True,
+                capture_output=True,
+                env=environment,
+                cwd=ROOT,
+                check=False,
+            )
+            stop = subprocess.run(
+                [sys.executable, str(RUNNER), "Stop"],
+                input=json.dumps({"session_id": "s1", "cwd": "/private/project"}),
+                text=True,
+                capture_output=True,
+                env=environment,
+                cwd=ROOT,
+                check=False,
+            )
+            self.assertEqual(0, prompt.returncode)
+            self.assertEqual(0, stop.returncode)
+            records = (Path(directory) / "diagnostics.jsonl").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(2, len(records))
+            self.assertIn('"context_chars": 0', records[1])
+            self.assertNotIn("/private/project", "\n".join(records))
 
     def test_missing_mnemosyne_does_not_fail_the_hook(self):
         result = self._run(

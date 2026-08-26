@@ -1,6 +1,6 @@
 {
   "name": "codex-mnemosyne",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Automatic, local-first Mnemosyne memory for OpenAI Codex through native lifecycle hooks.",
   "author": {
     "name": "dmego",
@@ -16,8 +16,7 @@
     "hooks",
     "mcp"
   ],
-  "hooks": "./hooks/hooks.json",
-  "skills": "./skills/",
+  "skills": "./skills/",  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Codex Mnemosyne",
     "shortDescription": "Automatic Mnemosyne recall and turn capture for Codex.",

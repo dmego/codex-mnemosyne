@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+plugin_root=${PLUGIN_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}
+resolver="$plugin_root/bin/mnemosyne-resolve-python"
+server="$plugin_root/bin/mnemosyne-mcp.py"
+
+python_path=$($resolver --mcp 2>/dev/null || true)
+if [ -z "$python_path" ]; then
+    fallback=${CODEX_MNEMOSYNE_PYTHON:-}
+    if [ -z "$fallback" ]; then
+        fallback=$(command -v python3 2>/dev/null || true)
+    fi
+    [ -n "$fallback" ] || {
+        echo "codex-mnemosyne MCP requires a Python runtime with mnemosyne and mcp" >&2
+        exit 1
+    }
+    python_path=$fallback
+fi
+
+exec "$python_path" "$server" "$@"

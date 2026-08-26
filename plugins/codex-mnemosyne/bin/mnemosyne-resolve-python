@@ -1,0 +1,78 @@
+#!/bin/sh
+# This file is a POSIX shell resolver.
+set -eu
+
+plugin_root=${PLUGIN_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}
+user_home=${HOME:-}
+
+require_mcp=0
+if [ "${1:-}" = "--mcp" ]; then
+    require_mcp=1
+fi
+
+try_candidate() {
+    candidate=$1
+    [ -n "$candidate" ] || return 1
+    case "$candidate" in
+        */*)
+            [ -x "$candidate" ] || return 1
+            resolved=$candidate
+            ;;
+        *)
+            resolved=$(command -v "$candidate" 2>/dev/null || true)
+            [ -n "$resolved" ] || return 1
+            ;;
+    esac
+    if [ "$require_mcp" -eq 1 ]; then
+        "$resolved" -c 'import mnemosyne; import mcp' >/dev/null 2>&1 || return 1
+    else
+        "$resolved" -c 'import mnemosyne' >/dev/null 2>&1 || return 1
+    fi
+    printf '%s\n' "$resolved"
+    exit 0
+}
+
+try_shebang() {
+    command_path=$1
+    [ -r "$command_path" ] || return 1
+    first_line=$(sed -n '1p' "$command_path" 2>/dev/null || true)
+    case "$first_line" in
+        '#!'*)
+            shebang=${first_line#\#!}
+            interpreter=$(printf '%s\n' "$shebang" | awk '{print $1}')
+            if [ "$interpreter" = "/usr/bin/env" ]; then
+                interpreter=$(printf '%s\n' "$shebang" | awk '{print $2}')
+            fi
+            try_candidate "$interpreter"
+            ;;
+    esac
+    return 1
+}
+
+# An explicit override wins, but an unusable override does not disable the
+# fail-open hook. The resolver continues to discover another valid runtime.
+if try_candidate "${CODEX_MNEMOSYNE_PYTHON:-}"; then :; fi
+if try_candidate "$plugin_root/.venv/bin/python"; then :; fi
+
+# The Mnemosyne CLI is normally installed next to the interpreter that owns
+# the SDK. Its shebang lets us discover Conda/venv Python without hard-coding
+# one installation layout.
+mnemosyne_command=$(command -v mnemosyne 2>/dev/null || true)
+if [ -n "$mnemosyne_command" ]; then
+    if try_shebang "$mnemosyne_command"; then :; fi
+fi
+
+if try_candidate python; then :; fi
+if try_candidate python3; then :; fi
+
+# Common macOS Conda locations are last-resort candidates for installations
+# whose CLI is not on PATH (the default Codex app PATH often has this shape).
+for candidate in \
+    "$user_home/anaconda3/bin/python" \
+    "$user_home/miniconda3/bin/python" \
+    "/opt/anaconda3/bin/python" \
+    "/opt/miniconda3/bin/python"; do
+    if try_candidate "$candidate"; then :; fi
+done
+
+exit 1

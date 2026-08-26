@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+plugin_root=${PLUGIN_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}
+resolver="$plugin_root/bin/mnemosyne-resolve-python"
+hook="$plugin_root/bin/mnemosyne-hook.py"
+
+python_path=$($resolver 2>/dev/null || true)
+if [ -z "$python_path" ]; then
+    # Preserve the hook's zero-error contract when Mnemosyne is not installed.
+    fallback=${CODEX_MNEMOSYNE_PYTHON:-}
+    if [ -z "$fallback" ]; then
+        fallback=$(command -v python3 2>/dev/null || true)
+    fi
+    [ -n "$fallback" ] || exit 0
+    python_path=$fallback
+fi
+
+exec "$python_path" "$hook" "$@"

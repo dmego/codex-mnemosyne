@@ -164,6 +164,65 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaises(MemoryUnavailable):
             adapter.remember("unroutable legacy content", {"kind": "turn"})
 
+    def test_get_context_filters_project_channel_before_injection(self):
+        import sqlite3
+        from types import SimpleNamespace
+
+        from codex_mnemosyne.adapter import MnemosyneAdapter
+        from codex_mnemosyne.config import Config
+
+        class FakeMnemosyne:
+            def __init__(self, **kwargs):
+                connection = sqlite3.connect(":memory:")
+                connection.row_factory = sqlite3.Row
+                connection.execute(
+                    """
+                    CREATE TABLE working_memory (
+                        id TEXT PRIMARY KEY,
+                        content TEXT NOT NULL,
+                        source TEXT,
+                        timestamp TEXT,
+                        importance REAL,
+                        scope TEXT,
+                        last_recalled TEXT,
+                        valid_until TEXT,
+                        superseded_by TEXT,
+                        consolidated_at TEXT,
+                        session_id TEXT,
+                        channel_id TEXT,
+                        recall_count INTEGER DEFAULT 0
+                    )
+                    """
+                )
+                self.beam = SimpleNamespace(conn=connection)
+                self.channel_id = kwargs["channel_id"]
+                self.session_id = kwargs["session_id"]
+
+            def get_context(self, **kwargs):
+                raise AssertionError("unfiltered SDK context path was used")
+
+        config = Config.from_env({"CODEX_MNEMOSYNE_BANK": "portable"})
+        payload = {"session_id": "s1", "cwd": "/work/demo"}
+        channel = config.project_channel(payload)
+        adapter = MnemosyneAdapter(config, payload, memory_factory=FakeMnemosyne)
+        memory = adapter._load_memory()
+        memory.beam.conn.executemany(
+            """
+            INSERT INTO working_memory
+              (id, content, source, timestamp, importance, scope, session_id, channel_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                ("matching", "same project memory", "test", "2026-01-02", 0.9, "global", "old", channel),
+                ("other", "other project memory", "test", "2026-01-03", 1.0, "global", "old", "codex-project:other"),
+            ],
+        )
+        memory.beam.conn.commit()
+
+        context = adapter.get_context(5)
+
+        self.assertEqual(["matching"], [item["id"] for item in context])
+
 
 if __name__ == "__main__":
     unittest.main()

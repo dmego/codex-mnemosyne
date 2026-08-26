@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Callable, Mapping, Protocol
 
 from .config import Config
@@ -85,8 +86,37 @@ class MnemosyneAdapter:
         return [dict(item) for item in result or []]
 
     def get_context(self, limit: int) -> list[dict[str, object]]:
-        result = self._load_memory().get_context(limit=limit)
-        return [dict(item) for item in result or []]
+        memory = self._load_memory()
+        connection = getattr(getattr(memory, "beam", None), "conn", None)
+        if connection is None:
+            result = memory.get_context(limit=limit)
+            return [dict(item) for item in result or []]
+
+        columns = ("id", "content", "source", "timestamp", "importance", "scope", "last_recalled")
+        now = datetime.now().isoformat()
+        channel_id = self.config.project_channel(self.payload)
+        session_id = self.config.session_id(self.payload)
+        rows = connection.execute(
+            """
+            SELECT id, content, source, timestamp, importance, scope, last_recalled
+            FROM working_memory
+            WHERE (valid_until IS NULL OR valid_until > ?)
+              AND superseded_by IS NULL
+              AND consolidated_at IS NULL
+              AND (
+                    (scope = 'global' AND (channel_id = ? OR channel_id IS NULL))
+                 OR (COALESCE(scope, '') != 'global' AND session_id = ?
+                     AND (channel_id = ? OR channel_id IS NULL))
+              )
+            ORDER BY
+                CASE WHEN scope = 'global' THEN 0 ELSE 1 END,
+                importance DESC,
+                timestamp DESC
+            LIMIT ?
+            """,
+            (now, channel_id, session_id, channel_id, max(0, int(limit)),),
+        ).fetchall()
+        return [dict(row) if hasattr(row, "keys") else dict(zip(columns, row)) for row in rows]
 
     def remember(self, content: str, metadata: dict[str, object]) -> str | None:
         payload = dict(metadata)

@@ -18,6 +18,9 @@ from .transcript import latest_exchange, new_turns
 @dataclass(frozen=True)
 class HookResult:
     additional_context: str | None = None
+    enqueued: int = 0
+    flushed: int = 0
+    remaining: int = 0
 
 
 def _value(payload: Mapping[str, object], *names: str) -> object:
@@ -123,8 +126,9 @@ def handle_post_tool(payload: Mapping[str, object], config: Config, outbox: Outb
     if not config.auto_tool_capture:
         return HookResult()
     summary = summarize_tool(payload)
+    enqueued = 0
     if summary:
-        outbox.enqueue(
+        enqueued = int(outbox.enqueue(
             MemoryEntry(
                 summary,
                 {
@@ -135,8 +139,8 @@ def handle_post_tool(payload: Mapping[str, object], config: Config, outbox: Outb
                     "bank": config.bank,
                 },
             )
-        )
-    return HookResult()
+        ))
+    return HookResult(enqueued=enqueued, remaining=len(outbox.pending()))
 
 
 def _transcript_path(payload: Mapping[str, object]) -> Path | None:
@@ -163,6 +167,7 @@ def handle_write_event(
     memory: MemoryPort,
     outbox: Outbox,
 ) -> HookResult:
+    enqueued = 0
     if config.auto_capture:
         path = _transcript_path(payload)
         if path is not None:
@@ -184,13 +189,13 @@ def handle_write_event(
                             "event_index": exchange.assistant_index,
                         },
                     )
-                    enqueued = outbox.enqueue(entry)
+                    enqueued = int(outbox.enqueue(entry))
                     already_pending = any(item.fingerprint == entry.fingerprint for item in outbox.pending())
                     can_advance = enqueued or already_pending
             if can_advance:
                 outbox.write_cursor(cursor)
     try:
-        outbox.flush(lambda entry: memory.remember(entry.content, entry.metadata))
+        stats = outbox.flush(lambda entry: memory.remember(entry.content, entry.metadata))
     except Exception:
-        pass
-    return HookResult()
+        return HookResult(enqueued=enqueued, remaining=len(outbox.pending()))
+    return HookResult(enqueued=enqueued, flushed=stats.written, remaining=stats.remaining)

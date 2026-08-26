@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "mnemosyne": {
+      "command": "./bin/mnemosyne-mcp",
+      "args": [],
+      "cwd": ".",
+      "env_vars": [
+        "HOME",
+        "CODEX_HOME",
+        "HERMES_HOME",
+        "MNEMOSYNE_HOME",
+        "MNEMOSYNE_DATA_DIR",
+        "MNEMOSYNE_MCP_BANK",
+        "MNEMOSYNE_AUTHOR_ID",
+        "MNEMOSYNE_AUTHOR_TYPE",
+        "MNEMOSYNE_CHANNEL_ID",
+        "MNEMOSYNE_DEFAULT_OWNER",
+        "MNEMOSYNE_DEFAULT_SCOPE",
+        "MNEMOSYNE_SHARED_DB_PATH",
+        "MNEMOSYNE_SYNC_REMOTE",
+        "MNEMOSYNE_SYNC_KEY",
+        "CODEX_MNEMOSYNE_BANK",
+        "CODEX_MNEMOSYNE_AUTHOR_ID",
+        "CODEX_MNEMOSYNE_AUTHOR_TYPE"
+      ]
+    }
+  }
+}
