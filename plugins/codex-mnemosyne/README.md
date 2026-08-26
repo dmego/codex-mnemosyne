@@ -129,9 +129,43 @@ MNEMOSYNE_MCP_BANK = "coding"
 MNEMOSYNE_AUTHOR_ID = "codex"
 ```
 
-The same block is read by lifecycle hooks and the bundled MCP bridge. A
-top-level `[mcp_servers.mnemosyne.env]` block is also accepted. The resolved
-source is shown by `bin/mnemosyne-doctor`.
+### Per-project banks
+
+Both automatic hooks and the manual MCP server prefer a project-scoped
+`.codex/config.toml` (found through the hook payload's `cwd`) and fall back to
+the global `~/.codex/config.toml`. This lets different projects use different
+Mnemosyne banks.
+
+- **Automatic hooks** resolve the project file from the hook payload's `cwd`.
+  The plugin-scoped block below makes the `startpaper` project use the `thesis`
+  bank while every other project keeps the global bank:
+
+  ```toml
+  # <project>/.codex/config.toml
+  [plugins."codex-mnemosyne@codex-mnemosyne".mcp_servers.mnemosyne.env]
+  MNEMOSYNE_MCP_BANK = "thesis"
+  ```
+
+- **Manual MCP tools** run in a single global stdio process whose `cwd` is the
+  plugin cache directory, so they cannot discover a project config on their
+  own. To route them to a project bank as well, override the server in the
+  project config with the full definition; Codex injects `command`, `cwd` and
+  `env` into the child process:
+
+  ```toml
+  # <project>/.codex/config.toml
+  [mcp_servers.mnemosyne]
+  type = "stdio"
+  command = "/Users/<you>/.codex/plugins/cache/codex-mnemosyne/codex-mnemosyne/0.1.3/bin/mnemosyne-mcp"
+  cwd = "/Users/<you>/.codex/plugins/cache/codex-mnemosyne/codex-mnemosyne/0.1.3"
+
+  [mcp_servers.mnemosyne.env]
+  MNEMOSYNE_MCP_BANK = "thesis"
+  ```
+
+  The cached path embeds the plugin version; update it after a plugin upgrade.
+  The override takes effect in new Codex sessions. Projects without an
+  override keep the global bank.
 
 The Mnemosyne database location remains controlled by `MNEMOSYNE_DATA_DIR` and Mnemosyne's own bank resolver. The plugin never assumes a local path.
 Automatic recall is filtered by a stable hash of the current project path, so memories captured in another project are not returned by default. The path itself is never stored as a channel value.

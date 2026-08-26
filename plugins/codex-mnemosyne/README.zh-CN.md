@@ -117,8 +117,39 @@ MNEMOSYNE_MCP_BANK = "coding"
 MNEMOSYNE_AUTHOR_ID = "codex"
 ```
 
-如果手动定义了顶层 MCP server，也接受 `[mcp_servers.mnemosyne.env]`。实际解析到的配置来源
-可用 `bin/mnemosyne-doctor` 查看。
+### 按项目隔离 bank
+
+自动 hooks 和手动 MCP server 都会优先从项目自己的 `.codex/config.toml` 解析 bank，
+找不到时回退到全局 `~/.codex/config.toml`，因此不同项目可以使用不同的 Mnemosyne bank。
+
+- **自动 hooks** 通过 hook payload 里的 `cwd` 定位项目文件。下面的插件作用域配置块会让
+  `startpaper` 项目使用 `thesis` bank，其他项目继续使用全局 bank：
+
+  ```toml
+  # <项目目录>/.codex/config.toml
+  [plugins."codex-mnemosyne@codex-mnemosyne".mcp_servers.mnemosyne.env]
+  MNEMOSYNE_MCP_BANK = "thesis"
+  ```
+
+- **手动 MCP 工具**运行在单一全局 stdio 进程中，其 `cwd` 是插件缓存目录，无法自己发现项目
+  配置。要让它们也使用项目 bank，可以在项目配置中完整覆盖 server 定义；Codex 会把
+  `command`、`cwd` 和 `env` 注入子进程：
+
+  ```toml
+  # <项目目录>/.codex/config.toml
+  [mcp_servers.mnemosyne]
+  type = "stdio"
+  command = "/Users/<you>/.codex/plugins/cache/codex-mnemosyne/codex-mnemosyne/0.1.3/bin/mnemosyne-mcp"
+  cwd = "/Users/<you>/.codex/plugins/cache/codex-mnemosyne/codex-mnemosyne/0.1.3"
+
+  [mcp_servers.mnemosyne.env]
+  MNEMOSYNE_MCP_BANK = "thesis"
+  ```
+
+  缓存路径里包含插件版本号，升级插件后需要同步更新；覆盖配置在新 Codex 会话中生效。
+  没有覆盖配置的项目继续使用全局 bank。
+
+Mnemosyne 数据库路径仍由 `MNEMOSYNE_DATA_DIR` 和 Mnemosyne 自己的 bank resolver 决定。插件不绑定任何本机路径。
 
 Mnemosyne 数据库路径仍由 `MNEMOSYNE_DATA_DIR` 和 Mnemosyne 自己的 bank resolver 决定。插件不绑定任何本机路径。
 自动召回会按当前项目路径的稳定 hash 做 channel 过滤，默认不会返回其他项目捕获的记忆；路径本身不会写入 channel 值。
