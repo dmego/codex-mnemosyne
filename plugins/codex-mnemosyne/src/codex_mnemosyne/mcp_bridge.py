@@ -446,9 +446,20 @@ class McpBridge:
         self._upstream_dispatch = upstream_dispatch
 
     def tool_definitions(self) -> list[dict[str, Any]]:
-        from mnemosyne.mcp_tools import get_tool_definitions
+        from mnemosyne.mcp_tools import TOOLS, get_tool_definitions
 
-        return [dict(item) for item in get_tool_definitions()]
+        definitions = [dict(item) for item in get_tool_definitions()]
+        # Mnemosyne 4.0 narrows get_tool_definitions() to the schemas core itself
+        # can dispatch (#728).  That is right for a standalone MCP client and
+        # wrong here: this bridge owns handlers for OWN_HANDLERS, so dropping
+        # their schemas makes those handlers unreachable from the model.  The
+        # schemas still exist in TOOLS, so re-advertise the ones we can serve.
+        advertised = {item["name"] for item in definitions}
+        definitions.extend(
+            dict(item) for item in TOOLS
+            if item["name"] in OWN_HANDLERS and item["name"] not in advertised
+        )
+        return definitions
 
     def dispatch(self, name: str, arguments: Mapping[str, Any] | None = None) -> dict[str, Any]:
         values = dict(arguments or {})
@@ -482,22 +493,30 @@ class McpBridge:
 
 async def _run_stdio() -> None:
     from mcp.server import Server
-    from mcp.server.stdio import stdio_server
-    from mcp.types import TextContent, Tool
+    from mcp.server import stdio as stdio_server_module
+    from mcp.types import (CallToolRequestParams, CallToolResult, ListToolsResult,
+                           PaginatedRequestParams, TextContent, Tool)
 
     bridge = McpBridge()
     server = Server("codex-mnemosyne")
 
-    @server.list_tools()
-    async def list_tools():
-        return [Tool(**item) for item in bridge.tool_definitions()]
+    # mcp 2.x replaced the @server.list_tools()/@server.call_tool() decorators
+    # with add_request_handler(method, params_model, handler). The low-level
+    # route is used deliberately: it hands us the raw arguments dict, so the
+    # hand-written schemas in bridge.tool_definitions() stay authoritative
+    # instead of being re-derived (and lossily flattened) from a signature.
+    async def on_list_tools(ctx, params) -> ListToolsResult:
+        return ListToolsResult(tools=[Tool(**item) for item in bridge.tool_definitions()])
 
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict[str, Any]):
-        result = bridge.dispatch(name, arguments)
-        return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False, default=str))]
+    async def on_call_tool(ctx, params) -> CallToolResult:
+        result = bridge.dispatch(params.name, dict(params.arguments or {}))
+        return CallToolResult(content=[TextContent(
+            type="text", text=json.dumps(result, ensure_ascii=False, default=str))])
 
-    async with stdio_server() as (read_stream, write_stream):
+    server.add_request_handler("tools/list", PaginatedRequestParams, on_list_tools)
+    server.add_request_handler("tools/call", CallToolRequestParams, on_call_tool)
+
+    async with stdio_server_module.stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())
 
 

@@ -37,7 +37,12 @@ class McpFunctionMatrixTests(unittest.TestCase):
 
                 root = Path(os.environ["MATRIX_ROOT"])
                 bridge = McpBridge()
-                assert len(bridge.tool_definitions()) == 36
+                # core-dependent: 36 pre-4.0, 38 on 4.0 (bridge re-advertises
+                # the handlers it owns). Assert the contract, not the count.
+                assert len(bridge.tool_definitions()) >= 36
+                assert {t["name"] for t in bridge.tool_definitions()} >= {
+                    "mnemosyne_sync_status", "mnemosyne_persona_promote", "mnemosyne_triple_end",
+                }
 
                 def call(name, args=None):
                     result = bridge.dispatch(name, args or {})
@@ -165,13 +170,18 @@ class McpFunctionMatrixTests(unittest.TestCase):
                 assert call("mnemosyne_forget", {"memory_id": beta_id})["status"] == "deleted"
                 assert call("mnemosyne_get", {"memory_id": beta_id})["status"] == "not_found"
 
-                print(json.dumps({"status": "ok", "tools": 36}))
+                print(json.dumps({"status": "ok", "tools": len(bridge.tool_definitions())}))
                 """
             )
             environment = os.environ.copy()
+            # HERMES_HOME is redirected to the tmp dir, which would also move the
+            # fastembed cache and make the run try to re-download the model. Point
+            # the cache at the real one so the matrix runs offline.
+            cache_owner_home = os.environ.get("HERMES_HOME") or str(Path.home() / ".hermes")
             environment.update(
                 {
                     "PYTHONPATH": str(ROOT / "src"),
+                    "MNEMOSYNE_FASTEMBED_CACHE_DIR": str(Path(cache_owner_home) / "cache" / "fastembed"),
                     "MATRIX_ROOT": directory,
                     "MNEMOSYNE_DATA_DIR": str(Path(directory) / "data"),
                     "MNEMOSYNE_HOME": str(Path(directory) / "home"),
@@ -191,7 +201,11 @@ class McpFunctionMatrixTests(unittest.TestCase):
                 timeout=90,
             )
             self.assertEqual(0, result.returncode, result.stderr + "\n" + result.stdout)
-            self.assertEqual({"status": "ok", "tools": 36}, json.loads(result.stdout.strip().splitlines()[-1]))
+            summary = json.loads(result.stdout.strip().splitlines()[-1])
+            # Tool count is core-dependent (36 pre-4.0, 38 on 4.0 where the bridge
+            # re-advertises its own handlers). Assert the contract, not the number.
+            self.assertEqual("ok", summary["status"])
+            self.assertGreaterEqual(summary["tools"], 36)
 
 
 if __name__ == "__main__":
